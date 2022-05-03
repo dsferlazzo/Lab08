@@ -10,6 +10,7 @@ import java.util.List;
 
 import it.polito.tdp.extflightdelays.model.Airline;
 import it.polito.tdp.extflightdelays.model.Airport;
+import it.polito.tdp.extflightdelays.model.CoppiaId;
 import it.polito.tdp.extflightdelays.model.Flight;
 
 public class ExtFlightDelaysDAO {
@@ -62,6 +63,52 @@ public class ExtFlightDelaysDAO {
 			throw new RuntimeException("Error Connection Database");
 		}
 	}
+	/**
+	 * Data una distanza minima, ritorna tutti gli aereoporti connessi con
+	 * almeno una tratta di almeno quella distanza
+	 * @param distanza
+	 * @return
+	 */
+	public List<Airport> getAirportsConnected(int distanza) {
+		String sql = "WITH listaAereoporti "
+				+ "AS "
+				+ "	( "
+				+ "		SELECT f.ORIGIN_AIRPORT_ID AS ap,  AVG(f.DISTANCE) AS n "
+				+ "		FROM flights f, airports a "
+				+ "		WHERE a.ID=f.ORIGIN_AIRPORT_ID "
+				+ "		GROUP BY f.ORIGIN_AIRPORT_ID, f.DESTINATION_AIRPORT_ID "
+				+ "	) "
+				+ "SELECT	DISTINCT a.ID,a.IATA_CODE,a.AIRPORT,a.CITY,a.STATE,a.COUNTRY,a.LATITUDE,a.LONGITUDE,a.TIMEZONE_OFFSET "
+				+ "FROM listaAereoporti la, airports a "
+				+ "WHERE n>=? AND la.ap=a.ID";
+		
+		List<Airport> result = new ArrayList<Airport>();
+
+		try {
+			Connection conn = ConnectDB.getConnection();
+			PreparedStatement st = conn.prepareStatement(sql);
+			st.setInt(1, distanza);
+		
+			ResultSet rs = st.executeQuery();
+
+			while (rs.next()) {
+				Airport airport = new Airport(rs.getInt("ID"), rs.getString("IATA_CODE"), rs.getString("AIRPORT"),
+						rs.getString("CITY"), rs.getString("STATE"), rs.getString("COUNTRY"), rs.getDouble("LATITUDE"),
+						rs.getDouble("LONGITUDE"), rs.getDouble("TIMEZONE_OFFSET"));
+				result.add(airport);
+			}
+
+			conn.close();
+			return result;
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.out.println("Errore connessione al database");
+			throw new RuntimeException("Error Connection Database");
+		}
+	}
+	
+	
 
 	public List<Flight> loadAllFlights() {
 		String sql = "SELECT * FROM flights";
@@ -85,6 +132,42 @@ public class ExtFlightDelaysDAO {
 			conn.close();
 			return result;
 
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.out.println("Errore connessione al database");
+			throw new RuntimeException("Error Connection Database");
+		}
+	}
+	/**
+	 * Data una distanza, ritorna tutte le coppie di id di aereoporti con una media distanza maggiore o uguale del parametro
+	 * @param distanza
+	 * @return
+	 */
+	public List<CoppiaId> getCoppieId(int distanza){
+		String sql = "WITH listaVoli "
+				+ "AS "
+				+ "	( "
+				+ "	SELECT f.ORIGIN_AIRPORT_ID AS oid, f.DESTINATION_AIRPORT_ID AS did, AVG(f.DISTANCE) AS n "
+				+ "	FROM flights f "
+				+ "	GROUP BY f.ORIGIN_AIRPORT_ID, f.DESTINATION_AIRPORT_ID "
+				+ "	) "
+				+ "SELECT oid, did, n "
+				+ "FROM listaVoli "
+				+ "WHERE n>=?";
+		List<CoppiaId> result = new ArrayList<CoppiaId>();
+		try {
+			Connection conn = ConnectDB.getConnection();
+			PreparedStatement st = conn.prepareStatement(sql);
+			st.setInt(1, distanza);
+			ResultSet rs = st.executeQuery();
+			
+			while(rs.next()) {
+				CoppiaId cid = new CoppiaId(rs.getInt("oid"), rs.getInt("did"), rs.getInt("n"));
+				result.add(cid);
+			}
+			conn.close();
+			return result;
+			
 		} catch (SQLException e) {
 			e.printStackTrace();
 			System.out.println("Errore connessione al database");
